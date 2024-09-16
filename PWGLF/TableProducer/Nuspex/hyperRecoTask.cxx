@@ -49,7 +49,6 @@ using CollisionsFull = soa::Join<aod::Collisions, aod::EvSels, aod::CentFT0As, a
 using CollisionsFullMC = soa::Join<aod::Collisions, aod::McCollisionLabels, aod::EvSels, aod::CentFT0As, aod::CentFT0Cs, aod::CentFT0Ms>;
 
 using CollisionsFullWithFlow = soa::Join<aod::Collisions, aod::EvSels, aod::CentFT0As, aod::CentFT0Cs, aod::CentFT0Ms, aod::FT0Mults, aod::FV0Mults, aod::TPCMults, aod::EPCalibrationTables>;
-
 namespace
 {
 constexpr double betheBlochDefault[1][6]{{-1.e32, -1.e32, -1.e32, -1.e32, -1.e32, -1.e32}};
@@ -171,6 +170,9 @@ struct hyperRecoTask {
   Configurable<std::string> lutPath{"lutPath", "GLO/Param/MatLUT", "Path of the Lut parametrization"};
   Configurable<std::string> geoPath{"geoPath", "GLO/Config/GeometryAligned", "Path of the geometry file"};
   Configurable<std::string> pidPath{"pidPath", "", "Path to the PID response object"};
+
+  // use GPU for DCAFitter processing
+  Configurable<bool> useGPU{"useGPU", false, "Use GPU for the DCAFitter process"};
 
   // histogram axes
   ConfigurableAxis rigidityBins{"rigidityBins", {200, -10.f, 10.f}, "Binning for rigidity #it{p}^{TPC}/#it{z}"};
@@ -399,7 +401,11 @@ struct hyperRecoTask {
 
     int nCand = 0;
     try {
-      nCand = fitter.process(heTrackCov, piTrackCov);
+      if (useGPU) {
+        nCand = o2::vertexing::device::process(1, 1, fitter, heTrackCov, piTrackCov);
+      } else {
+        nCand = fitter.process(heTrackCov, piTrackCov);
+      }
     } catch (...) {
       LOG(error) << "Exception caught in DCA fitter process call!";
       return;
